@@ -8,22 +8,26 @@
 -define(COUNTEREXAMPLE_FILE, "rebar3_proper-counterexamples.consult").
 -define(REGRESSION_FILE, "proper-regressions.consult").
 
+-define(X_PROPER_FILE_EXTS_OPT, x_proper_file_exts).
+-define(X_PROPER_FILE_PFXS_OPT, x_proper_file_pfxs).
+-define(X_PROPER_FUN_PFXS_OPT, x_proper_fun_pfxs).
+
 %% ===================================================================
 %% Public API
 %% ===================================================================
 -spec init(rebar_state:t()) -> {ok, rebar_state:t()}.
 init(State) ->
     Provider = providers:create([
-            {name, ?PROVIDER},            % The 'user friendly' name of the task
-            {module, ?MODULE},            % The module implementation of the task
-            {profiles, [test]},
-            {bare, true},                 % The task can be run by the user, always true
-            {deps, ?DEPS},                % The list of dependencies
-            {example, "rebar3 proper"},   % How to use the plugin
-            {opts, proper_opts()},        % list of options understood by the plugin
-            {short_desc, "Run PropEr test suites"},
-            {desc, "Run PropEr test suites"}
-    ]),
+                                 {name, ?PROVIDER},            % The 'user friendly' name of the task
+                                 {module, ?MODULE},            % The module implementation of the task
+                                 {profiles, [test]},
+                                 {bare, true},                 % The task can be run by the user, always true
+                                 {deps, ?DEPS},                % The list of dependencies
+                                 {example, "rebar3 proper"},   % How to use the plugin
+                                 {opts, proper_opts()},        % list of options understood by the plugin
+                                 {short_desc, "Run PropEr test suites"},
+                                 {desc, "Run PropEr test suites"}
+                                 ]),
     {ok, rebar_state:add_provider(State, Provider)}.
 
 
@@ -49,17 +53,17 @@ do(State) ->
     ensure_proper(),
     SysConfigs = sys_config_list(ProperOpts, Opts),
     Configs = lists:flatmap(fun(Filename) ->
-                               rebar_file_utils:consult_config(State, Filename)
+                                    rebar_file_utils:consult_config(State, Filename)
                             end, SysConfigs),
     [application:load(Application) || Config <- SysConfigs, {Application, _} <- Config],
     rebar_utils:reread_config(Configs),
 
 
     Res = case run_type(Opts) of
-        quickcheck -> do_quickcheck(State, Opts, ProperOpts);
-        retry -> do_retry(State, Opts, ProperOpts);
-        regressions -> do_regressions(State, Opts, ProperOpts);
-        store -> do_store(State, Opts, ProperOpts)
+              quickcheck -> do_quickcheck(State, Opts, ProperOpts);
+              retry -> do_retry(State, Opts, ProperOpts);
+              regressions -> do_regressions(State, Opts, ProperOpts);
+              store -> do_store(State, Opts, ProperOpts)
     end,
     run_post_hooks(State, Res),
     Res.
@@ -153,7 +157,7 @@ run_retries(State, Opts, ProperOpts, CounterExamples) ->
     Dir = proplists:get_value(dir, Opts, "test"),
     {Mods, Props} = lists:unzip([{atom_to_list(M), atom_to_list(F)}
                                    || {M, F, _Args} <- CounterExamples]),
-    try find_properties(State, Dir, Mods, Props) of
+    try find_properties(State, Dir, Mods, Props, extract_experimentals(Opts)) of
         Found ->
             ExpectedLen = length(CounterExamples),
             FoundLen = length(Found),
@@ -260,11 +264,17 @@ store_counterexamples(State, Failed) ->
     file:close(Io),
     ok.
 
+extract_experimentals(Opts) ->
+    {proplists:get_value(?X_PROPER_FILE_EXTS_OPT, Opts, [".erl"]),
+     proplists:get_value(?X_PROPER_FILE_PFXS_OPT, Opts, ["prop_"]),
+     proplists:get_value(?X_PROPER_FUN_PFXS_OPT, Opts, ["prop_"])}.
+
 find_properties(State, Opts) ->
     Dir = proplists:get_value(dir, Opts, "test"),
     Mods = proplists:get_value(module, Opts, any),
     Props = proplists:get_value(properties, Opts, any),
-    Found = find_properties(State, Dir, Mods, Props),
+    Found = find_properties(State, Dir, Mods, Props,
+                            extract_experimentals(Opts)),
     rebar_api:debug("Found: ~p", [Found]),
     {ModsFound0, PropsFound0} = lists:unzip(Found),
     ModsFound = [atom_to_list(Mod) || Mod <- ModsFound0],
@@ -277,7 +287,7 @@ find_properties(State, Opts) ->
          || Mod <- Mods, not lists:member(Mod, ModsFound)],
     Found.
 
-find_properties(State, Dir, Mods, Props) ->
+find_properties(State, Dir, Mods, Props, {Exts, FilePfxs, FunPfxs}) ->
     rebar_api:debug("Dir: ~p", [Dir]),
     rebar_api:debug("Mods: ~p", [Mods]),
     rebar_api:debug("Props: ~p", [Props]),
@@ -290,42 +300,48 @@ find_properties(State, Dir, Mods, Props) ->
     %% Pick a root test directory for umbrella apps
     UmbrellaDir =
         [{{<<"root">>,
-           filename:join(rebar_dir:base_dir(State), "prop_"++Dir)},
-         P} || P <- [make_absolute_path(filename:join([".", Dir]))],
-               not lists:member(P, [D || {_,D} <- RawDirs])],
+           filename:join(rebar_dir:base_dir(State), PropFilePfx ++ Dir)},
+          P} || PropFilePfx <- FilePfxs,
+                P <- [make_absolute_path(filename:join([".", Dir]))],
+                not lists:member(P, [D || {_,D} <- RawDirs])],
     TestDirs = RawDirs ++ UmbrellaDir,
     rebar_api:debug("SearchDirs: ~p", [TestDirs]),
     %% Keep directories with properties in them
     Dirs = [{App, TestDir}
             || {App, TestDir} <- TestDirs,
                {ok, Files} <- [file:list_dir(TestDir)],
-               lists:any(fun(File) -> prop_suite(Mods, File) end, Files)],
+               Ext <- Exts,
+               Pfx <- FilePfxs,
+               lists:any(fun(File) -> prop_suite(Mods, File, Ext, Pfx) end, Files)],
     compile_dirs(State, Dir, Dirs),
     [Prop || {_, TestDir} <- Dirs,
              {ok, Files} <- [file:list_dir(TestDir)],
              File <- Files,
-             prop_suite(Mods, File),
-             Prop <- properties(Props, module(File))].
+             Ext <- Exts,
+             Pfx <- FilePfxs,
+             FPfx <- FunPfxs,
+             prop_suite(Mods, File, Ext, Pfx),
+             Prop <- properties(Props, module(File, Ext), FPfx)].
 
-prop_suite(Mods, File) ->
-    Mod = filename:basename(File, ".erl"),
-    filename:extension(File) =:= ".erl"
-    andalso
-    ((Mods =:= any andalso lists:prefix("prop_", Mod))
+prop_suite(Mods, File, Ext, Pfx) ->
+    Mod = filename:basename(File, Ext),
+    filename:extension(File) =:= Ext
+        andalso
+    ((Mods =:= any andalso lists:prefix(Pfx, Mod))
      orelse
      (Mods =/= any andalso lists:member(Mod, Mods))).
 
-module(File) ->
-    list_to_atom(filename:basename(File, ".erl")).
+module(File, Ext) ->
+    list_to_atom(filename:basename(File, Ext)).
 
-properties(any, Mod) ->
-    [{Mod, Prop} || {Prop,0} <- Mod:module_info(exports), prop_prefix(Prop)];
-properties(Props, Mod) ->
+properties(any, Mod, Pfx) ->
+    [{Mod, Prop} || {Prop,0} <- Mod:module_info(exports), prop_prefix(Prop, Pfx)];
+properties(Props, Mod, _) ->
     [{Mod, Prop} || {Prop,0} <- Mod:module_info(exports),
                     lists:member(atom_to_list(Prop), Props)].
 
-prop_prefix(Atom) ->
-    lists:prefix("prop_", atom_to_list(Atom)).
+prop_prefix(Atom, Pfx) ->
+    lists:prefix(Pfx, atom_to_list(Atom)).
 
 compile_dirs(State, _TestDir, Dirs) -> % [{App, Dir}]
     %% Set up directory -- may need to unlink then re-link
@@ -419,8 +435,14 @@ proper_opts() ->
       "specifies a binary function '{Mod,Fun}', similar to io:format/2, "
       "to be used for all output printing"},
      {sys_config, undefined, "sys_config", string,
-      "config file to load before starting tests"}
-    ].
+      "config file to load before starting tests"},
+     {?X_PROPER_FILE_EXTS_OPT, undefined, atom_to_list(?X_PROPER_FILE_EXTS_OPT), string,
+      "(experimental) comma separated list of proper files extensions (by default .erl is always present)"},
+     {?X_PROPER_FILE_PFXS_OPT, undefined, atom_to_list(?X_PROPER_FILE_PFXS_OPT), string,
+      "(experimental) comma separated list of proper file names prefixes (by default prop_ is always present)"},
+     {?X_PROPER_FUN_PFXS_OPT, undefined, atom_to_list(?X_PROPER_FUN_PFXS_OPT), string,
+      "(experimental) comma separated list of prop function names prefixes (by default prop_ is always present)"}
+     ].
 
 handle_opts(State) ->
     {CliOpts, _} = rebar_state:command_parsed_args(State),
@@ -444,6 +466,11 @@ rebar3_opts([{sys_config, Config} | T]) ->
     [{sys_config, Config} | rebar3_opts(T)];
 rebar3_opts([{store, Retry} | T]) ->
     [{store, Retry} | rebar3_opts(T)];
+rebar3_opts([{XOpt, List} | T])
+  when XOpt =:= ?X_PROPER_FILE_EXTS_OPT
+       ; XOpt =:= ?X_PROPER_FILE_PFXS_OPT
+       ; XOpt =:= ?X_PROPER_FUN_PFXS_OPT ->
+    [{XOpt, re:split(List, ",", [{return, list}])} | rebar3_opts(T)];
 rebar3_opts([_ | T]) ->
     rebar3_opts(T).
 
@@ -472,6 +499,10 @@ proper_opts([{retry,_} | T]) -> proper_opts(T);
 proper_opts([{regressions,_} | T]) -> proper_opts(T);
 proper_opts([{sys_config,_} | T]) -> proper_opts(T);
 proper_opts([{store,_} | T]) -> proper_opts(T);
+proper_opts([{XOpt, _} | T])
+  when XOpt =:= ?X_PROPER_FILE_EXTS_OPT
+       ; XOpt =:= ?X_PROPER_FILE_PFXS_OPT
+       ; XOpt =:= ?X_PROPER_FUN_PFXS_OPT -> proper_opts(T);
 %% fall-through
 proper_opts([H|T]) -> [H | proper_opts(T)].
 
@@ -562,4 +593,3 @@ format_doc(Mod, Fun) ->
                             [Mod,Fun]),
             []
     end.
-

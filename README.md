@@ -1,11 +1,15 @@
 Rebar3 Proper Plugin
 =====
 
-Run PropEr test suites.
+Experimental fork: runs PropEr test suites for specified types of files and functions.
 
-By default, will look for all modules starting in `prop_` in the `test/`
+One may specify both property file extension `Ext` (by default it is ".erl"),
+file prefix `FPfx` (by default "prop\_" is assumed) and even property function prefix
+`PPfx` (by default it's "prop\_").
+
+By default, will look for all modules starting in `FPfx` in the `test/`
 directories of a rebar3 project, and running all properties (functions of arity
-0 with a `prop_` prefix) in them.
+0 with a `PPfx` prefix) in them.
 
 Todo/Gotchas
 ----
@@ -45,7 +49,10 @@ Then just call your plugin directly in an existing application:
                          [--constraint_tries <constraint_tries>]
                          [--spec_timeout <spec_timeout>]
                          [--any_to_integer <any_to_integer>]
-    
+                         [--x_proper_file_exts=<list-of-extensions>]
+                         [--x_proper_file_pfxs=<list-of-file-prefixes>]
+                         [--x_proper_fun_pfxs=<list-of-fun-prefixes>]
+
       -d, --dir           directory where the property tests are located
                           (defaults to "test")
       -m, --module        name of one or more modules to test (comma-separated)
@@ -78,6 +85,10 @@ Then just call your plugin directly in an existing application:
                           considers an input to be failing
       --any_to_integer    converts instances of the any() type to integers in
                           order to speed up execution
+      --x_proper_file_exts comma separated list of file extensions (with dot)
+      --x_proper_file_pfxs comma separated list of file prefixes
+      --x_proper_fun_pfxs comma separated list of function name prefixes
+
 
 All of [PropEr's standard configurations](http://proper.softlab.ntua.gr/doc/proper.html#Options)
 that can be put in a consult file can be put in `{proper_opts, [Options]}.` in your rebar.config file.
