@@ -161,6 +161,7 @@ Finally invoke rebar3 with the following parameters:
 All of this assumes that the `lfe-compile` plugin is installed and there are some `.lfe` filles in `test`
 folder, prefixed with `prop-` and containing properties functions prefixed with `prop-`, like the following:
 
+```lfe
     (defmodule prop-a-module
         (compile export_all))
 
@@ -169,6 +170,7 @@ folder, prefixed with `prop-` and containing properties functions prefixed with 
     (defun prop-a-property ()
       (FORALL (tuple x y) (tuple (integer) (atom))
               (=/= x y)))
+```
 
 One may want to define an alias as well:
 
