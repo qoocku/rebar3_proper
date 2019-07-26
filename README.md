@@ -5,7 +5,7 @@ Experimental fork: runs PropEr test suites for specified types of files and func
 
 One may specify both property file extension `Ext` (by default it is ".erl"),
 file prefix `FPfx` (by default "prop\_" is assumed) and even property function prefix
-`PPfx` (by default it's "prop\_"). The detailed example is given [here](LFE example).
+`PPfx` (by default it's "prop\_"). The detailed example is given [here](#lfe-example).
 
 By default, will look for all modules starting in `FPfx` in the `test/`
 directories of a rebar3 project, and running all properties (functions of arity
