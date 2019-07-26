@@ -162,14 +162,14 @@ All of this assumes that the `lfe-compile` plugin is installed and there are som
 folder, prefixed with `prop-` and containing properties functions prefixed with `prop-`, like the following:
 
 ```lfe
-    (defmodule prop-a-module
-        (compile export_all))
+(defmodule prop-a-module
+  (compile export_all))
 
-    (include-lib "proper/include/proper.hrl")
+(include-lib "proper/include/proper.hrl")
 
-    (defun prop-a-property ()
-      (FORALL (tuple x y) (tuple (integer) (atom))
-              (=/= x y)))
+(defun prop-a-property ()
+  (FORALL (tuple x y) (tuple (integer) (atom))
+          (=/= x y)))
 ```
 
 One may want to define an alias as well:
@@ -179,6 +179,8 @@ One may want to define an alias as well:
 If you need to use both Erlang and LFE source files concurrently during testing - just modify the parameters:
 
     rebar3 as test proper --x_proper_file_exts=.erl,.lfe --x_proper_file_pfxs=prop_,prop- --x_proper_fun_pfxs=prop_,prop-
+
+Per-property meta-functions must have prefix you used with `--x_proper_fun_pfxs`, i.e. if `prop-` is used then for `(prop-fun () ...)` property function one must define `(prop-fun (('doc) ...))` function and so on.
 
 Changelog
 ----
