@@ -5,7 +5,7 @@ Experimental fork: runs PropEr test suites for specified types of files and func
 
 One may specify both property file extension `Ext` (by default it is ".erl"),
 file prefix `FPfx` (by default "prop\_" is assumed) and even property function prefix
-`PPfx` (by default it's "prop\_").
+`PPfx` (by default it's "prop\_"). The detailed example is given [here](LFE example).
 
 By default, will look for all modules starting in `FPfx` in the `test/`
 directories of a rebar3 project, and running all properties (functions of arity
@@ -142,6 +142,41 @@ prop_demo:prop_fails() -> false
 
 The meta function may be omitted entirely.
 
+LFE example
+---
+
+You may use this plugin together with LFE code. First, you need to enable compilation of LFE source code from `src` and `test` directories
+setting `src_dir` param:
+
+    {src_dirs, ["src", "test"]}
+
+Then, enable the compilation in the `pre` phase (i.e. before testing begins):
+
+    {provider_hooks, [{pre, [{compile, {lfe, compile}}]}]}.
+
+Finally invoke rebar3 with the following parameters:
+
+    rebar3 as test proper --x_proper_file_exts=.lfe --x_proper_file_pfxs=prop- --x_proper_fun_pfxs=prop-
+
+All of this assumes that the `lfe-compile` plugin is installed and there are some `.lfe` filles in `test`
+folder, prefixed with `prop-` and containing properties functions prefixed with `prop-`, like the following:
+
+    (defmodule prop-a-module
+        (compile export_all))
+
+    (include-lib "proper/include/proper.hrl")
+
+    (defun prop-a-property ()
+      (FORALL (tuple x y) (tuple (integer) (atom))
+              (=/= x y)))
+
+One may want to define an alias as well:
+
+    {alias, [{propelfer, [{proper, "--x_proper_file_exts=.lfe --x_proper_file_pfxs=prop- --x_proper_fun_pfxs=prop-"}]}]}.
+
+If you need to use both Erlang and LFE source files concurrently during testing - just modify the parameters:
+
+    rebar3 as test proper --x_proper_file_exts=.erl,.lfe --x_proper_file_pfxs=prop_,prop- --x_proper_fun_pfxs=prop_,prop-
 
 Changelog
 ----
